@@ -1,5 +1,7 @@
 # Doppelganger - README
 
+Note from the author: This is my first GitHub project, developed purely as a hobby rather than as a professional developer. Please be indulgent regarding my coding style and project management. I'm very open to any constructive feedback or suggestions to improve both the code quality and the way I manage this project.
+
 ## 🔎 About the Project
 
 **Doppelganger** is an innovative offensive security tool designed for advanced penetration testing by creating highly realistic phishing pages. Its operation relies on continuous interaction between an automated bot and a client web page hosted on a VPS server.
