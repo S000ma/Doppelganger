@@ -1,8 +1,3 @@
-# Doppelganger
-Doppelganger BOT Project
-# Doppelganger Project Installation Guide
-
-
 # Doppelganger - README
 
 ## 🔎 About the Project
